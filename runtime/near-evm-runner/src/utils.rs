@@ -191,7 +191,6 @@ pub fn near_erc721_domain(chain_id: U256) -> RawU256 {
     bytes.extend_from_slice(
         &keccak("EIP712Domain(string name,string version,uint256 chainId)".as_bytes()).as_bytes(),
     );
-    println!("near_erc721_domain before NEAR {:?}", hex::encode(&bytes));
     let near = b"NEAR";
     let near: RawU256 = keccak(&near).into();
     bytes.extend_from_slice(&near);
@@ -200,6 +199,8 @@ pub fn near_erc721_domain(chain_id: U256) -> RawU256 {
     bytes.extend_from_slice(&version);
     bytes.extend_from_slice(&u256_to_arr(&chain_id));
     println!("near_erc721_domain before hash {:?}", hex::encode(&bytes));
+    println!("near_erc721_domain after hash {:?}", hex::encode(keccak(&bytes)));
+
     keccak(&bytes).into()
 }
 
@@ -207,6 +208,12 @@ pub fn method_name_to_rlp(method_name: String) -> [u8; 4] {
     let mut result = [0u8; 4];
     result.copy_from_slice(&keccak(method_name)[..4]);
     result
+}
+
+fn encode_address(addr: Address) -> Vec<u8> {
+    let mut bytes = vec![0u8; 12];
+    bytes.extend_from_slice(&addr.0);
+    bytes
 }
 
 pub fn prepare_meta_call_args(
@@ -219,22 +226,31 @@ pub fn prepare_meta_call_args(
     method_name: &str,
     args: &[u8],
 ) -> RawU256 {
-    let mut bytes = Vec::with_capacity(32 + 32 + 20 + account_id.len() + 4 + args.len());
+    let mut bytes = Vec::new();
     bytes.extend_from_slice(
         &keccak(
-            "NearTx(string evmId, uint256 nonce, uint256 feeAmount, uint256 feeAddress, address contractAddress, string contractMethod, Arguments arguments)"
+            "NearTx(string evmId,uint256 nonce,uint256 feeAmount,address feeAddress,address contractAddress,string contractMethod,Arguments arguments)Arguments(uint256 petId)"
                 .as_bytes(),
         )
         .as_bytes(),
     );
-    bytes.extend_from_slice(account_id.as_bytes());
+    bytes.extend_from_slice(&keccak(account_id.as_bytes()).as_bytes());
     bytes.extend_from_slice(&u256_to_arr(&nonce));
     bytes.extend_from_slice(&u256_to_arr(&fee_amount));
-    bytes.extend_from_slice(&fee_address.0);
-    bytes.extend_from_slice(&contract_address.0);
-    bytes.extend_from_slice(&method_name.as_bytes());
-    // TODO: hash?
-    bytes.extend_from_slice(args);
+    bytes.extend_from_slice(&encode_address(fee_address));
+    bytes.extend_from_slice(&encode_address(contract_address));
+    bytes.extend_from_slice(&keccak(method_name.as_bytes()).as_bytes());
+
+    // encode args, TODO: make manual hard coded parse to a parse function that parse depends on input
+    let mut arg_bytes = Vec::new();
+    arg_bytes.extend_from_slice(&keccak("Arguments(uint256 petId)".as_bytes()).as_bytes());
+    arg_bytes.extend_from_slice(&args);
+    println!("first bytes before add args {:?}", hex::encode(bytes.clone()));
+    println!("args {:?}", hex::encode(arg_bytes.clone()));
+
+    let arg_bytes_hash: RawU256 = keccak(&arg_bytes).into();
+    bytes.extend_from_slice(&arg_bytes_hash);
+    println!("first bytes {:?}", hex::encode(bytes.clone()));
     let message: RawU256 = keccak(&bytes).into();
     let mut bytes = Vec::with_capacity(2 + 32 + 32);
     bytes.extend_from_slice(&[0x19, 0x01]);
