@@ -198,8 +198,6 @@ pub fn near_erc721_domain(chain_id: U256) -> RawU256 {
     let version: RawU256 = keccak(&version).into();
     bytes.extend_from_slice(&version);
     bytes.extend_from_slice(&u256_to_arr(&chain_id));
-    println!("near_erc721_domain before hash {:?}", hex::encode(&bytes));
-    println!("near_erc721_domain after hash {:?}", hex::encode(keccak(&bytes)));
 
     keccak(&bytes).into()
 }
@@ -245,18 +243,15 @@ pub fn prepare_meta_call_args(
     let mut arg_bytes = Vec::new();
     arg_bytes.extend_from_slice(&keccak("Arguments(uint256 petId)".as_bytes()).as_bytes());
     arg_bytes.extend_from_slice(&args);
-    println!("first bytes before add args {:?}", hex::encode(bytes.clone()));
-    println!("args {:?}", hex::encode(arg_bytes.clone()));
 
     let arg_bytes_hash: RawU256 = keccak(&arg_bytes).into();
     bytes.extend_from_slice(&arg_bytes_hash);
-    println!("first bytes {:?}", hex::encode(bytes.clone()));
+
     let message: RawU256 = keccak(&bytes).into();
     let mut bytes = Vec::with_capacity(2 + 32 + 32);
     bytes.extend_from_slice(&[0x19, 0x01]);
     bytes.extend_from_slice(domain_separator);
     bytes.extend_from_slice(&message);
-    println!("bytes {:?}", hex::encode(&bytes));
     keccak(&bytes).into()
 }
 
@@ -303,8 +298,6 @@ pub fn parse_meta_call(
         &method_name,
         args,
     );
-    println!("msg for ecrecover: {:?}", hex::encode(msg));
-    println!("sig for ecrecover: {:?}", hex::encode(&signature.to_vec()));
 
     let sender = ecrecover_address(&msg, &signature);
     if sender == Address::zero() {

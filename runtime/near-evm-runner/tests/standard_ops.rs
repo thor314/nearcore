@@ -284,7 +284,7 @@ fn test_meta_call() {
 }
 
 #[test]
-fn test_meta_call_sig_recover() {
+fn test_meta_call_sig_and_recover() {
     let (mut fake_external, test_addr, vm_config, fees_config) = setup_and_deploy_test();
     let signer = InMemorySigner::from_seed("doesnt", KeyType::SECP256K1, "a");
     let mut context =
@@ -299,15 +299,13 @@ fn test_meta_call_sig_recover() {
         "adopt(uint256)",
         u256_to_arr(&U256::from(9)).to_vec(),
     );
-    println!("meta_tx: {:?}", meta_tx);
-    println!("contract addr: {:?}", test_addr);
+
+    // meta_tx[0..65] is eth-sig-util format signature
+    assert_eq!(hex::encode(&meta_tx[0..65]), "29b88cd2fab58cfd0d05eacdabaab081257d62bdafe9153922025c8e8723352d61922acbb290bd1dba8f17f174d47cd5cc41480d19a82a0bff4d0b9b9441399b1c");
     let signer_addr = public_key_to_address(signer.public_key);
-    println!("signer private key: {:?}", signer.secret_key);
-    println!("signer address: {:?}", signer_addr);
 
     let domain_separator = near_erc721_domain(U256::from(CHAIN_ID));
     let result = parse_meta_call(&domain_separator, &"evm".to_string(), meta_tx).unwrap();
-    println!("{:?}", result);
     assert_eq!(result.sender, signer_addr);
 }
 
@@ -320,6 +318,7 @@ fn test_ecrecover() {
 
     let signature2 = hex::decode("c710c068462547d3d3c452a4abc14fd91f152357c21e667ad6ac67130e76e9a1501491aa4e9d35846bff49d9c77e913217031fdc44f1dc36271a4b7d637763d01b").unwrap();
     let mut signature: [u8; 65] = [0; 65];
+    // This is a sig from eth-sig-util, last one byte already added 27
     signature[0] = signature2[64];
     signature[1..].copy_from_slice(&signature2[..64]);
 

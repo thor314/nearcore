@@ -82,18 +82,15 @@ pub fn encode_meta_call_function_args(
         method_name,
         &args,
     );
-    println!("msg before sign: {:?}", hex::encode(msg));
+
     match signer.sign(&msg) {
         Signature::ED25519(_) => panic!("Wrong Signer"),
         Signature::SECP256K1(sig) => {
-            let signature = Into::<[u8; 65]>::into(sig.clone()).to_vec();
-            println!(
-                "msg sig: {:?} {:?}",
-                hex::encode(&signature[0..64]),
-                hex::encode(&signature[64..65])
-            );
+            let mut signature = Into::<[u8; 65]>::into(sig.clone()).to_vec();
+            // Add 27 to align eth-sig-util signature format
+            signature[64] += 27;
             [
-                Into::<[u8; 65]>::into(sig).to_vec(),
+                signature,
                 u256_to_arr(&nonce).to_vec(),
                 u256_to_arr(&fee_amount).to_vec(),
                 fee_token.0.to_vec(),
