@@ -296,7 +296,7 @@ fn test_meta_call_sig_and_recover() {
         U256::from(6),
         Address::from_slice(&[0u8; 20]),
         test_addr,
-        "adopt(uint256)",
+        "adopt(uint256 petId)",
         u256_to_arr(&U256::from(9)).to_vec(),
     );
 
