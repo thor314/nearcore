@@ -214,6 +214,13 @@ fn encode_address(addr: Address) -> Vec<u8> {
     bytes
 }
 
+/// Return a signature of the method_name
+/// E.g. method_signature("adopt(uint256 petId)") -> "adopt(uint256)"
+fn method_signature(method_name: &str) -> String {
+    // TODO: parse method_name into some structure, and format to remove argument names
+    "adopt(uint256)".to_string()
+}
+
 pub fn prepare_meta_call_args(
     domain_separator: &RawU256,
     account_id: &AccountId,
@@ -225,19 +232,16 @@ pub fn prepare_meta_call_args(
     args: &[u8],
 ) -> RawU256 {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(
-        &keccak(
-            "NearTx(string evmId,uint256 nonce,uint256 feeAmount,address feeAddress,address contractAddress,string contractMethod,Arguments arguments)Arguments(uint256 petId)"
-                .as_bytes(),
-        )
-        .as_bytes(),
-    );
+    let method_arg_start = method_name.find('(').unwrap();
+    let types = format!("{}{}", "NearTx(string evmId,uint256 nonce,uint256 feeAmount,address feeAddress,address contractAddress,string contractMethod,Arguments arguments)Arguments", &method_name[method_arg_start..]);
+    bytes.extend_from_slice(&keccak(types.as_bytes()).as_bytes());
     bytes.extend_from_slice(&keccak(account_id.as_bytes()).as_bytes());
     bytes.extend_from_slice(&u256_to_arr(&nonce));
     bytes.extend_from_slice(&u256_to_arr(&fee_amount));
     bytes.extend_from_slice(&encode_address(fee_address));
     bytes.extend_from_slice(&encode_address(contract_address));
-    bytes.extend_from_slice(&keccak(method_name.as_bytes()).as_bytes());
+    let method_sig = method_signature(method_name);
+    bytes.extend_from_slice(&keccak(method_sig.as_bytes()).as_bytes());
 
     // encode args, TODO: make manual hard coded parse to a parse function that parse depends on input
     let mut arg_bytes = Vec::new();
