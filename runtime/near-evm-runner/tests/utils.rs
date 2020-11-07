@@ -81,7 +81,8 @@ pub fn encode_meta_call_function_args(
         address,
         method_name,
         &args,
-    );
+    )
+    .unwrap();
 
     match signer.sign(&msg) {
         Signature::ED25519(_) => panic!("Wrong Signer"),
