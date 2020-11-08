@@ -8,6 +8,7 @@ use near_vm_logic::mocks::mock_external::MockedExternal;
 use near_vm_logic::types::Balance;
 use near_vm_logic::VMConfig;
 
+/// See https://github.com/ethereum-lists/chains/blob/master/_data/chains/1313161555.json
 pub const CHAIN_ID: u128 = 1313161555;
 
 pub fn accounts(num: usize) -> String {
@@ -41,7 +42,13 @@ pub fn create_context<'a>(
         0,
         10u64.pow(14),
         false,
+        1_000_000_000.into(),
     )
+}
+
+#[cfg(test)]
+pub fn show_evm_gas_used(context: &EvmContext) {
+    println!("Accumulated EVM gas used: {}", &context.evm_gas_counter.used_gas);
 }
 
 /// Linter is suboptimal, because doesn't see that this is used in standard_ops.rs.

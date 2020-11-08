@@ -22,6 +22,7 @@ use near_vm_logic::ReturnData;
 use crate::actions::execute_function_call;
 use crate::ext::RuntimeExt;
 use crate::ApplyState;
+use std::sync::Arc;
 
 pub struct TrieViewer {}
 
@@ -125,10 +126,10 @@ impl TrieViewer {
             epoch_info_provider,
             current_protocol_version,
         );
-        let config = RuntimeConfig::default();
+        let config = Arc::new(RuntimeConfig::default());
         let apply_state = ApplyState {
             block_index: block_height,
-            last_block_hash: last_block_hash.clone(),
+            last_block_hash: *last_block_hash,
             epoch_id: epoch_id.clone(),
             epoch_height,
             gas_price: 0,
@@ -136,6 +137,8 @@ impl TrieViewer {
             gas_limit: None,
             random_seed: root,
             current_protocol_version,
+            config: config.clone(),
+            cache: None,
             evm_chain_id,
         };
         let action_receipt = ActionReceipt {
@@ -149,7 +152,7 @@ impl TrieViewer {
         let function_call = FunctionCallAction {
             method_name: method_name.to_string(),
             args: args.to_vec(),
-            gas: 0,
+            gas: config.wasm_config.limit_config.max_gas_burnt_view,
             deposit: 0,
         };
         let (outcome, err) = execute_function_call(
@@ -165,7 +168,6 @@ impl TrieViewer {
             true,
             true,
         );
-
         let elapsed = now.elapsed();
         let time_ms =
             (elapsed.as_secs() as f64 / 1_000.0) + f64::from(elapsed.subsec_nanos()) / 1_000_000.0;
@@ -193,6 +195,7 @@ impl TrieViewer {
 
 #[cfg(test)]
 mod tests {
+    use near_chain_configs::TEST_EVM_CHAIN_ID;
     use near_primitives::test_utils::MockEpochInfoProvider;
     use near_primitives::trie_key::TrieKey;
     use near_primitives::types::StateChangeCause;
@@ -222,7 +225,7 @@ mod tests {
             &mut logs,
             &MockEpochInfoProvider::default(),
             PROTOCOL_VERSION,
-            0x99,
+            TEST_EVM_CHAIN_ID,
         );
 
         assert_eq!(result.unwrap(), encode_int(10));
@@ -246,7 +249,7 @@ mod tests {
             &mut logs,
             &MockEpochInfoProvider::default(),
             PROTOCOL_VERSION,
-            0x99,
+            TEST_EVM_CHAIN_ID,
         );
 
         let err = result.unwrap_err();

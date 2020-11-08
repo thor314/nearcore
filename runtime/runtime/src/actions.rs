@@ -2,6 +2,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 
 use near_crypto::PublicKey;
 use near_primitives::account::{AccessKey, AccessKeyPermission, Account};
+use near_primitives::checked_feature;
 use near_primitives::contract::ContractCode;
 use near_primitives::errors::{ActionError, ActionErrorKind, ExternalError, RuntimeError};
 use near_primitives::hash::CryptoHash;
@@ -12,9 +13,7 @@ use near_primitives::transaction::{
 };
 use near_primitives::types::{AccountId, EpochInfoProvider, ValidatorStake};
 use near_primitives::utils::create_random_seed;
-use near_primitives::version::{
-    ProtocolVersion, EVM_PRECOMPILE_PROTOCOL_VERSION, IMPLICIT_ACCOUNT_CREATION_PROTOCOL_VERSION,
-};
+use near_primitives::version::{ProtocolVersion, IMPLICIT_ACCOUNT_CREATION_PROTOCOL_VERSION};
 use near_runtime_configs::AccountCreationConfig;
 use near_runtime_fees::RuntimeFeesConfig;
 use near_runtime_utils::{
@@ -25,7 +24,7 @@ use near_store::{
     get_access_key, get_code, remove_access_key, remove_account, set_access_key, set_code,
     StorageError, TrieUpdate,
 };
-use near_vm_errors::{CompilationError, FunctionCallError, InconsistentStateError};
+use near_vm_errors::{CacheError, CompilationError, FunctionCallError, InconsistentStateError};
 use near_vm_logic::types::PromiseResult;
 use near_vm_logic::{VMContext, VMOutcome};
 use near_vm_runner::VMError;
@@ -51,7 +50,7 @@ pub(crate) fn execute_function_call(
     is_view: bool,
 ) -> (Option<VMOutcome>, Option<VMError>) {
     let account_id = runtime_ext.account_id();
-    if runtime_ext.protocol_version() >= EVM_PRECOMPILE_PROTOCOL_VERSION
+    if checked_feature!("protocol_feature_evm", EVM, runtime_ext.protocol_version())
         && is_account_evm(&account_id)
     {
         near_evm_runner::run_evm(
@@ -71,12 +70,16 @@ pub(crate) fn execute_function_call(
             is_view,
         )
     } else {
+        let cache = match &apply_state.cache {
+            Some(cache) => Some((*cache).as_ref()),
+            None => None,
+        };
         let code = match runtime_ext.get_code(account.code_hash) {
             Ok(Some(code)) => code,
             Ok(None) => {
                 let error =
                     FunctionCallError::CompilationError(CompilationError::CodeDoesNotExist {
-                        account_id: runtime_ext.account_id().clone(),
+                        account_id: account_id.clone(),
                     });
                 return (None, Some(VMError::FunctionCallError(error)));
             }
@@ -132,6 +135,7 @@ pub(crate) fn execute_function_call(
             &config.transaction_costs,
             promise_results,
             apply_state.current_protocol_version,
+            cache,
         )
     }
 }
@@ -197,6 +201,15 @@ pub(crate) fn action_function_call(
         }
         Some(VMError::InconsistentStateError(err)) => {
             return Err(StorageError::StorageInconsistentState(err.to_string()).into());
+        }
+        Some(VMError::CacheError(err)) => {
+            let message = match err {
+                CacheError::DeserializationError => "Cache deserialization error",
+                CacheError::SerializationError { hash: _hash } => "Cache serialization error",
+                CacheError::ReadError => "Cache read error",
+                CacheError::WriteError => "Cache write error",
+            };
+            return Err(StorageError::StorageInconsistentState(message.to_string()).into());
         }
         None => true,
     };
