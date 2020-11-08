@@ -5,12 +5,13 @@ use borsh::BorshSerialize;
 use ethabi_contract::use_contract;
 use ethereum_types::{Address, H256, U256};
 
+use keccak_hash::keccak;
 use near_crypto::{InMemorySigner, KeyType};
 use near_evm_runner::types::{TransferArgs, WithdrawArgs};
 use near_evm_runner::utils::{
-    address_from_arr, address_to_vec, ecrecover_address, encode_call_function_args,
-    encode_view_call_function_args, near_account_id_to_evm_address, near_erc721_domain,
-    parse_meta_call, u256_to_arr,
+    address_from_arr, address_to_vec, ecrecover_address, encode_address, encode_call_function_args,
+    encode_string, encode_view_call_function_args, near_account_id_to_evm_address,
+    near_erc721_domain, parse_meta_call, u256_to_arr,
 };
 use near_runtime_fees::RuntimeFeesConfig;
 use near_vm_errors::{EvmError, VMLogicError};
@@ -287,25 +288,70 @@ fn test_meta_call() {
 fn test_meta_call_sig_and_recover() {
     let (mut fake_external, test_addr, vm_config, fees_config) = setup_and_deploy_test();
     let signer = InMemorySigner::from_seed("doesnt", KeyType::SECP256K1, "a");
+    let signer_addr = public_key_to_address(signer.public_key.clone());
     let mut context =
         create_context(&mut fake_external, &vm_config, &fees_config, accounts(1), 100);
+    let domain_separator = near_erc721_domain(U256::from(CHAIN_ID));
+
     let meta_tx = encode_meta_call_function_args(
         &signer,
         CHAIN_ID,
         U256::from(14),
         U256::from(6),
         Address::from_slice(&[0u8; 20]),
-        test_addr,
+        test_addr.clone(),
         "adopt(uint256 petId)",
         u256_to_arr(&U256::from(9)).to_vec(),
     );
 
     // meta_tx[0..65] is eth-sig-util format signature
+    // assert signature same as eth-sig-util, which also implies msg before sign (constructed by prepare_meta_call_args, follow eip-712) same
     assert_eq!(hex::encode(&meta_tx[0..65]), "29b88cd2fab58cfd0d05eacdabaab081257d62bdafe9153922025c8e8723352d61922acbb290bd1dba8f17f174d47cd5cc41480d19a82a0bff4d0b9b9441399b1c");
-    let signer_addr = public_key_to_address(signer.public_key);
-
-    let domain_separator = near_erc721_domain(U256::from(CHAIN_ID));
     let result = parse_meta_call(&domain_separator, &"evm".to_string(), meta_tx).unwrap();
+    assert_eq!(result.sender, signer_addr);
+
+    let meta_tx2 = encode_meta_call_function_args(
+        &signer,
+        CHAIN_ID,
+        U256::from(14),
+        U256::from(6),
+        Address::from_slice(&[0u8; 20]),
+        test_addr.clone(),
+        // must not have trailing space after comma
+        "adopt(uint256 petId,string petName)",
+        vec![u256_to_arr(&U256::from(9)).to_vec(), encode_string("CapsLock")].concat(),
+    );
+    assert_eq!(hex::encode(&meta_tx2[0..65]), "8f5e467a71327b1f23330ff0918dd55ab61daf65b4726c1457c91982964a78ee47874a32b6e1b8479da60d3e17de891e3f8c4cbc9f269da06b232862f51b0ba51b");
+    let result = parse_meta_call(&domain_separator, &"evm".to_string(), meta_tx2).unwrap();
+    assert_eq!(result.sender, signer_addr);
+
+    let meta_tx3 = encode_meta_call_function_args(
+        &signer,
+        CHAIN_ID,
+        U256::from(14),
+        U256::from(6),
+        Address::from_slice(&[0u8; 20]),
+        test_addr,
+        "adopt(uint256 petId,PetObj petObject)PetObj(string petName,address owner)",
+        vec![
+            u256_to_arr(&U256::from(9)).to_vec(),
+            keccak(
+                &vec![
+                    encode_string("PetObj(string petName,address owner)"),
+                    encode_string("CapsLock"),
+                    encode_address(Address::from_slice(
+                        &hex::decode("0123456789012345678901234567890123456789").unwrap(),
+                    )),
+                ]
+                .concat(),
+            )
+            .as_bytes()
+            .to_vec(),
+        ]
+        .concat(),
+    );
+    assert_eq!(hex::encode(&meta_tx3[0..65]), "0a2af43c3efab7ce535a00125b2505823c3c3218bacab1546a3e569ec15ca4557352f16ebabeeaa066a239346d7870afd49bf6e0b7b5c0d398d5cf894f3bdc8f1c");
+    let result = parse_meta_call(&domain_separator, &"evm".to_string(), meta_tx3).unwrap();
     assert_eq!(result.sender, signer_addr);
 }
 

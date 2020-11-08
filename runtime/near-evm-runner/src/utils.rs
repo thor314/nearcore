@@ -208,9 +208,15 @@ pub fn method_name_to_rlp(method_name: String) -> [u8; 4] {
     result
 }
 
-fn encode_address(addr: Address) -> Vec<u8> {
+pub fn encode_address(addr: Address) -> Vec<u8> {
     let mut bytes = vec![0u8; 12];
     bytes.extend_from_slice(&addr.0);
+    bytes
+}
+
+pub fn encode_string(s: &str) -> Vec<u8> {
+    let mut bytes = vec![];
+    bytes.extend_from_slice(&keccak(s.as_bytes()).as_bytes());
     bytes
 }
 
