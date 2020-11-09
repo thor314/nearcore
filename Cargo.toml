@@ -50,8 +50,10 @@ members = [
 # pins this version to fix https://github.com/actix/actix-net/issues/129
 actix-rt = "=1.1.1"
 openssl-probe = { version = "0.1.2" }
+jemallocator = { version = "0.3" }
 
 [dev-dependencies]
+deepsize = { path = "deepsize" }
 actix = "0.9"
 lazy_static = "1.4"
 log = "^0.4.6"
@@ -74,6 +76,8 @@ near-network = { path = "./chain/network" }
 neard = { path = "./neard"}
 
 testlib = { path = "./test-utils/testlib" }
+
+memory-tracker = { path = "./memory-tracker" }
 
 [profile.release]
 lto = true        # Enable full link-time optimization.
@@ -109,3 +113,4 @@ rosetta_rpc = ["neard/rosetta_rpc"]
 protocol_feature_forward_chunk_parts = ["neard/protocol_feature_forward_chunk_parts"]
 nightly_protocol = []
 nightly_protocol_features = ["nightly_protocol", "neard/nightly_protocol_features"]
+profiling = []

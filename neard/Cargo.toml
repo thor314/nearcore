@@ -6,11 +6,13 @@ edition = "2018"
 default-run = "neard"
 
 [dependencies]
+jemallocator = { version = "0.3"  }
+deepsize = { path = "../deepsize" }
 actix = "0.9"
 actix-web = { version = "2", features = [ "openssl" ] }
 byteorder = "1.2"
 easy-ext = "0.2"
-rocksdb = { git = "https://github.com/nearprotocol/rust-rocksdb", branch="disable-thread" }
+rocksdb = { path = "/home/pmnoxx/repos/rust-rocksdb"  }
 log = "0.4"
 chrono = { version = "0.4.4", features = ["serde"] }
 git-version = "0.3.1"
@@ -45,6 +47,7 @@ near-telemetry = { path = "../chain/telemetry" }
 near-epoch-manager = { path = "../chain/epoch_manager" }
 
 delay-detector = { path = "../tools/delay_detector", optional = true }
+memory-tracker = { path = "../memory-tracker" }
 
 [dev-dependencies]
 near-logger-utils = { path = "../test-utils/logger" }

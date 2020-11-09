@@ -3,9 +3,12 @@ use std::cmp;
 use std::collections::HashMap;
 use std::io;
 use std::marker::PhantomPinned;
+use std::string::String;
 use std::sync::RwLock;
 
+use std::{thread, time};
 use borsh::{BorshDeserialize, BorshSerialize};
+use deepsize::{Context, DeepSizeOf};
 #[cfg(feature = "single_thread_rocksdb")]
 use rocksdb::Env;
 use rocksdb::{
@@ -278,22 +281,37 @@ impl DBTransaction {
     }
 }
 
+// #[derive(DeepSizeOf)]
 pub struct RocksDB {
     db: DB,
     cfs: Vec<*const ColumnFamily>,
     _pin: PhantomPinned,
 }
 
+impl DeepSizeOf for RocksDB {
+    fn deep_size_of_children(&self, _context: &mut Context) -> usize {
+        0
+    }
+}
+
+// TODO inaccurate
+// known_deep_size!(0, RocksDB);
+
 // DB was already Send+Sync. cf and read_options are const pointers using only functions in
 // this file and safe to share across threads.
 unsafe impl Send for RocksDB {}
 unsafe impl Sync for RocksDB {}
 
+#[derive(DeepSizeOf)]
 pub struct TestDB {
     db: RwLock<Vec<HashMap<Vec<u8>, Vec<u8>>>>,
 }
 
-pub trait Database: Sync + Send {
+pub trait Database: Sync + Send + DeepSizeOf {
+    fn get_stats(&self) -> HashMap<String, u64> {
+        HashMap::new()
+    }
+
     fn transaction(&self) -> DBTransaction {
         DBTransaction { ops: Vec::new() }
     }
@@ -315,6 +333,50 @@ pub trait Database: Sync + Send {
 }
 
 impl Database for RocksDB {
+    fn get_stats(&self) -> HashMap<String, u64> {
+        let keys = [
+            "rocksdb.num-immutable-mem-table",
+            "rocksdb.mem-table-flush-pending",
+            "rocksdb.compaction-pending",
+            "rocksdb.background-errors",
+            "rocksdb.cur-size-active-mem-table",
+            "rocksdb.cur-size-all-mem-tables",
+            "rocksdb.size-all-mem-tables",
+            "rocksdb.num-entries-active-mem-table",
+            "rocksdb.num-entries-imm-mem-tables",
+            "rocksdb.num-deletes-active-mem-table",
+            "rocksdb.num-deletes-imm-mem-tables",
+            "rocksdb.estimate-num-keys",
+            "rocksdb.estimate-table-readers-mem",
+            "rocksdb.is-file-deletions-enabled",
+            "rocksdb.num-snapshots",
+            "rocksdb.oldest-snapshot-time",
+            "rocksdb.num-live-versions",
+            "rocksdb.current-super-version-number",
+            "rocksdb.estimate-live-data-size",
+            "rocksdb.min-log-number-to-keep",
+            "rocksdb.total-sst-files-size",
+            "rocksdb.base-level",
+            "rocksdb.estimate-pending-compaction-bytes",
+            "rocksdb.num-running-compactions",
+            "rocksdb.num-running-flushes",
+            "rocksdb.actual-delayed-write-rate",
+            "rocksdb.is-write-stopped",
+        ];
+
+        let mut res: HashMap<String, u64> = HashMap::new();
+        for key in &keys {
+            let mut sum = 0;
+            for cf in &self.cfs {
+                if let Ok(Some(val)) = self.db.property_int_value_cf(unsafe { &**cf }, key) {
+                    sum += val;
+                }
+            }
+            res.insert(String::from(*key), sum);
+        }
+        return res;
+    }
+
     fn get(&self, col: DBCol, key: &[u8]) -> Result<Option<Vec<u8>>, DBError> {
         let read_options = rocksdb_read_options();
         let result = self.db.get_cf_opt(unsafe { &*self.cfs[col as usize] }, key, &read_options)?;
@@ -461,8 +523,13 @@ fn rocksdb_options() -> Options {
     opts.set_max_open_files(512);
     opts.set_keep_log_file_num(1);
     opts.set_bytes_per_sync(1048576);
-    opts.set_write_buffer_size(1024 * 1024 * 512 / 2);
+    opts.set_write_buffer_size(1024 * 1024 * 2 / 2);
+    opts.set_db_write_buffer_size(1024 * 1024 * 2);
+
     opts.set_max_bytes_for_level_base(1024 * 1024 * 512 / 2);
+
+    opts.set_arena_block_size(1024 * 1024 * 2);
+
     #[cfg(not(feature = "single_thread_rocksdb"))]
     {
         opts.increase_parallelism(cmp::max(1, num_cpus::get() as i32 / 2));
@@ -485,12 +552,12 @@ fn rocksdb_options() -> Options {
 fn rocksdb_block_based_options() -> BlockBasedOptions {
     let mut block_opts = BlockBasedOptions::default();
     block_opts.set_block_size(1024 * 16);
-    // We create block_cache for each of 47 columns, so the total cache size is 32 * 47 = 1504mb
-    let cache_size = 1024 * 1024 * 32;
+    let cache_size = 1024 * 1024 * 1;
     block_opts.set_block_cache(&Cache::new_lru_cache(cache_size).unwrap());
     block_opts.set_pin_l0_filter_and_index_blocks_in_cache(true);
     block_opts.set_cache_index_and_filter_blocks(true);
     block_opts.set_bloom_filter(10, true);
+
     block_opts
 }
 
@@ -500,6 +567,7 @@ fn rocksdb_column_options(col: DBCol) -> Options {
     opts.set_block_based_table_factory(&rocksdb_block_based_options());
     opts.optimize_level_style_compaction(1024 * 1024 * 128);
     opts.set_target_file_size_base(1024 * 1024 * 64);
+    opts.set_arena_block_size(1024 * 1024 * 2);
     opts.set_compression_per_level(&[]);
     if col.is_rc() {
         opts.set_merge_operator("refcount merge", RocksDB::refcount_merge, None);
@@ -529,14 +597,22 @@ impl RocksDB {
             cf_names.iter().map(|n| db.cf_handle(n).unwrap() as *const ColumnFamily).collect();
         Ok(Self { db, cfs, _pin: PhantomPinned })
     }
-
     pub fn new<P: AsRef<std::path::Path>>(path: P) -> Result<Self, DBError> {
+
+        let ten_millis = time::Duration::from_millis(1000);
+        thread::sleep(ten_millis);
+        println!("YYY RocksDB::new 0");
+        thread::sleep(ten_millis);
+
         use strum::IntoEnumIterator;
         let options = rocksdb_options();
         let cf_names: Vec<_> = DBCol::iter().map(|col| format!("col{}", col as usize)).collect();
         let cf_descriptors = DBCol::iter().map(|col| {
             ColumnFamilyDescriptor::new(format!("col{}", col as usize), rocksdb_column_options(col))
         });
+        thread::sleep(ten_millis);
+        println!("YYY RocksDB::new 3");
+        thread::sleep(ten_millis);
         let db = DB::open_cf_descriptors(&options, path, cf_descriptors)?;
         #[cfg(feature = "single_thread_rocksdb")]
         {
@@ -548,8 +624,15 @@ impl RocksDB {
             env.set_background_threads(0);
             println!("Disabled all background threads in rocksdb");
         }
+
+        thread::sleep(ten_millis);
+        println!("YYY RocksDB::new 1");
+        thread::sleep(ten_millis);
         let cfs =
             cf_names.iter().map(|n| db.cf_handle(n).unwrap() as *const ColumnFamily).collect();
+        thread::sleep(ten_millis);
+        println!("YYY RocksDB::new 2");
+        thread::sleep(ten_millis);
         Ok(Self { db, cfs, _pin: PhantomPinned })
     }
 }
