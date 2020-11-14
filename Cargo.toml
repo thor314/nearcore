@@ -79,7 +79,9 @@ testlib = { path = "./test-utils/testlib" }
 
 memory-tracker = { path = "./memory-tracker" }
 
+
 [profile.release]
+opt-level = 3
 lto = true        # Enable full link-time optimization.
 codegen-units = 1 # Use only 1 codegen-unit to enable full optimizations.
 overflow-checks = true

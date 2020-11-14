@@ -523,8 +523,8 @@ fn rocksdb_options() -> Options {
     opts.set_max_open_files(512);
     opts.set_keep_log_file_num(1);
     opts.set_bytes_per_sync(1048576);
-    opts.set_write_buffer_size(1024 * 1024 * 2 / 2);
-    opts.set_db_write_buffer_size(1024 * 1024 * 2);
+    opts.set_write_buffer_size(1024 * 1024 * 64 / 2);
+    opts.set_db_write_buffer_size(1024 * 1024 * 64);
 
     opts.set_max_bytes_for_level_base(1024 * 1024 * 512 / 2);
 
@@ -552,7 +552,7 @@ fn rocksdb_options() -> Options {
 fn rocksdb_block_based_options() -> BlockBasedOptions {
     let mut block_opts = BlockBasedOptions::default();
     block_opts.set_block_size(1024 * 16);
-    let cache_size = 1024 * 1024 * 1;
+    let cache_size = 1024 * 1024 * 32;
     block_opts.set_block_cache(&Cache::new_lru_cache(cache_size).unwrap());
     block_opts.set_pin_l0_filter_and_index_blocks_in_cache(true);
     block_opts.set_cache_index_and_filter_blocks(true);
@@ -599,10 +599,7 @@ impl RocksDB {
     }
     pub fn new<P: AsRef<std::path::Path>>(path: P) -> Result<Self, DBError> {
 
-        let ten_millis = time::Duration::from_millis(1000);
-        thread::sleep(ten_millis);
         println!("YYY RocksDB::new 0");
-        thread::sleep(ten_millis);
 
         use strum::IntoEnumIterator;
         let options = rocksdb_options();
@@ -610,9 +607,7 @@ impl RocksDB {
         let cf_descriptors = DBCol::iter().map(|col| {
             ColumnFamilyDescriptor::new(format!("col{}", col as usize), rocksdb_column_options(col))
         });
-        thread::sleep(ten_millis);
         println!("YYY RocksDB::new 3");
-        thread::sleep(ten_millis);
         let db = DB::open_cf_descriptors(&options, path, cf_descriptors)?;
         #[cfg(feature = "single_thread_rocksdb")]
         {
@@ -625,14 +620,10 @@ impl RocksDB {
             println!("Disabled all background threads in rocksdb");
         }
 
-        thread::sleep(ten_millis);
         println!("YYY RocksDB::new 1");
-        thread::sleep(ten_millis);
         let cfs =
             cf_names.iter().map(|n| db.cf_handle(n).unwrap() as *const ColumnFamily).collect();
-        thread::sleep(ten_millis);
         println!("YYY RocksDB::new 2");
-        thread::sleep(ten_millis);
         Ok(Self { db, cfs, _pin: PhantomPinned })
     }
 }
