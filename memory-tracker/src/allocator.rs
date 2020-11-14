@@ -10,6 +10,8 @@ use std::io::Write;
 use std::os::raw::c_void;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+const ALLOC_LIMIT: usize = 100;
+
 const COUNTERS_SIZE: usize = 16384;
 static JEMALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 static MEM_SIZE: [AtomicUsize; COUNTERS_SIZE as usize] = arr![AtomicUsize::new(0); 16384];
@@ -68,6 +70,9 @@ const IGNORE_START: &'static [&'static str] = &[
     "_ZN6cached",
     "_ZN9hashbrown",
     "_ZN20reed_solomon_erasure",
+    "_ZN5actix",
+    "_ZN5tokio",
+    "_ZN10tokio_util",
 ];
 
 const IGNORE_INSIDE: &'static [&'static str] = &[
@@ -122,14 +127,14 @@ unsafe impl GlobalAlloc for MyAllocator {
 
         if IN_TRACE.with(|in_trace| *in_trace.borrow()) == 0 {
             IN_TRACE.with(|in_trace| *in_trace.borrow_mut() = 1);
-            if layout.size() >= 1024
+            if layout.size() >= ALLOC_LIMIT
                 || rand::thread_rng().gen_range(0, 100) < 1
 //                || LAST_SIZE.with(|ls| *ls.borrow()) != layout.size()
             {
                 let size = libc::backtrace(ary.as_ptr() as *mut *mut c_void, 20);
-                for i in 1..min(size as usize, 20) {
+                for i in 0..min(size as usize, 20) {
+                    addr = Some(ary[i] as *mut c_void);
                     if ary[i] < 0x700000000000 as *mut c_void {
-                        addr = Some(ary[i] as *mut c_void);
                         let hash = murmur64(ary[i] as u64) % (1 << 23);
                         if (SKIP_PTR[(hash / 8) as usize] >> hash % 8) & 1 == 1 {
                             continue;
