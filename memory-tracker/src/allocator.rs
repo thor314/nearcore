@@ -73,6 +73,11 @@ const IGNORE_START: &'static [&'static str] = &[
     "_ZN5actix",
     "_ZN5tokio",
     "_ZN10tokio_util",
+    "_ZN3std",
+    "_ZN8smallvec",
+    "_ZN4core",
+
+
 ];
 
 const IGNORE_INSIDE: &'static [&'static str] = &[
@@ -123,7 +128,8 @@ unsafe impl GlobalAlloc for MyAllocator {
 
         let mut addr: Option<*mut c_void> = Some(2 as *mut c_void);
 
-        let ary: [*mut c_void; 20] = [0 as *mut c_void; 20];
+        
+        let ary: [*mut c_void; 30] = [0 as *mut c_void; 30];
 
         if IN_TRACE.with(|in_trace| *in_trace.borrow()) == 0 {
             IN_TRACE.with(|in_trace| *in_trace.borrow_mut() = 1);
@@ -131,8 +137,8 @@ unsafe impl GlobalAlloc for MyAllocator {
                 || rand::thread_rng().gen_range(0, 100) < 1
 //                || LAST_SIZE.with(|ls| *ls.borrow()) != layout.size()
             {
-                let size = libc::backtrace(ary.as_ptr() as *mut *mut c_void, 20);
-                for i in 0..min(size as usize, 20) {
+                let size = libc::backtrace(ary.as_ptr() as *mut *mut c_void, 30);
+                for i in 1..min(size as usize, 30) {
                     addr = Some(ary[i] as *mut c_void);
                     if ary[i] < 0x700000000000 as *mut c_void {
                         let hash = murmur64(ary[i] as u64) % (1 << 23);
