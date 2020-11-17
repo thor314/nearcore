@@ -65,27 +65,32 @@ pub fn murmur64(mut h: u64) -> u64 {
 
 const IGNORE_START: &'static [&'static str] = &[
     "__rg_",
+    "_ZN5actix",
     "_ZN5alloc",
     "_ZN6base64",
     "_ZN6cached",
+    "_ZN4core",
     "_ZN9hashbrown",
     "_ZN20reed_solomon_erasure",
-    "_ZN5actix",
     "_ZN5tokio",
     "_ZN10tokio_util",
     "_ZN3std",
     "_ZN8smallvec",
-    "_ZN4core",
-
-
 ];
 
 const IGNORE_INSIDE: &'static [&'static str] = &[
-    "$LT$alloc",
-    "serde_json..de..Deserializer",
-    "$LT$tracing_subscriber",
-    //  "collections",
-    //  "actix..",
+    "$LT$actix..",
+    "$LT$alloc..",
+    "$LT$base64..",
+    "$LT$cached..",
+    "$LT$core..",
+    "$LT$hashbrown..",
+    "$LT$reed_solomon_erasure..",
+    "$LT$tokio..",
+    "$LT$tokio_util..",
+    "$LT$serde_json..",
+    "$LT$std..",
+    "$LT$tracing_subscriber..",
 ];
 
 fn skip_ptr(addr: *mut c_void) -> bool {
@@ -128,7 +133,7 @@ unsafe impl GlobalAlloc for MyAllocator {
 
         let mut addr: Option<*mut c_void> = Some(2 as *mut c_void);
 
-        
+
         let ary: [*mut c_void; 30] = [0 as *mut c_void; 30];
 
         if IN_TRACE.with(|in_trace| *in_trace.borrow()) == 0 {
