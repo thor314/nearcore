@@ -218,12 +218,12 @@ pub fn encode_string(s: &str) -> Vec<u8> {
 }
 
 struct Arg {
+    #[allow(dead_code)]
     name: String,
     t: String,
 }
 
 struct Method {
-    #[allow(dead_code)]
     name: String,
     args: Vec<Arg>,
 }
