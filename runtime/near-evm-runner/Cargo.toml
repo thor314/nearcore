@@ -23,6 +23,7 @@ rlp = "0.4.2"
 keccak-hash = "0.4.1"
 ripemd160 = "0.9.0"
 libsecp256k1 = "0.3.5"
+itertools = "0.9.0"
 
 evm = { git = "https://github.com/openethereum/openethereum", rev = "v2.7.2" }
 vm = { git = "https://github.com/openethereum/openethereum", rev = "v2.7.2" }

@@ -308,27 +308,24 @@ fn methods_from_method_name(method_name: &str) -> Result<Vec<Method>> {
     Ok(methods)
 }
 
-fn methods_signature(methods: Vec<Method>) -> String {
-    let mut r = "".to_string();
-    for m in methods {
-        r += &m.name;
-        r += "(";
-        for (i, arg) in m.args.iter().enumerate() {
-            if i != 0 {
-                r += ",";
-            }
-            r += &arg.t;
-        }
-        r += ")";
-    }
-    r
+fn methods_signature(methods: &[Method]) -> String {
+    methods
+        .iter()
+        .map(|m| {
+            format!(
+                "{}({})",
+                &m.name,
+                itertools::join(m.args.iter().map(|arg| arg.t.as_str()), ",")
+            )
+        })
+        .collect()
 }
 
 /// Return a signature of the method_name
 /// E.g. method_signature("adopt(uint256 petId)") -> "adopt(uint256)"
 fn signature_from_method_name(method_name: &str) -> Result<String> {
     let methods = methods_from_method_name(method_name)?;
-    Ok(methods_signature(methods))
+    Ok(methods_signature(&methods))
 }
 
 #[derive(Debug, Clone)]
