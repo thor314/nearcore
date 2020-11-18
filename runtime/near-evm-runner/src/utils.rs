@@ -227,6 +227,58 @@ struct Method {
     args: Vec<Arg>,
 }
 
+impl Arg {
+    fn parse_arg(text: &str) -> Result<(Arg, &str)> {
+        let (t, remains) = parse_ident(text)?;
+        let remains = consume(remains, ' ')?;
+        let (name, remains) = parse_ident(remains)?;
+        Ok((Arg { t, name }, remains))
+    }
+}
+
+impl Method {
+    fn parse_method_args(text: &str) -> Result<(Vec<Arg>, &str)> {
+        let mut remains = consume(text, '(')?;
+        if remains.len() == 0 {
+            return Err(VMLogicError::EvmError(EvmError::InvalidMetaTransactionMethodName));
+        }
+        let mut args = vec![];
+        let first = remains.chars().next().unwrap();
+        if is_arg_start(first) {
+            let (arg, r) = Arg::parse_arg(remains)?;
+            remains = r;
+            args.push(arg);
+            while remains.chars().next() == Some(',') {
+                remains = consume(remains, ',')?;
+                let (arg, r) = Arg::parse_arg(remains)?;
+                remains = r;
+                args.push(arg);
+            }
+        }
+
+        let remains = consume(remains, ')')?;
+
+        Ok((args, remains))
+    }
+
+    fn parse_method(method_name: &str) -> Result<(Method, &str)> {
+        let (name, remains) = parse_ident(method_name)?;
+        let (args, remains) = Method::parse_method_args(remains)?;
+        Ok((Method { name, args }, remains))
+    }
+
+    fn methods_from_method_name(method_name: &str) -> Result<Vec<Method>> {
+        let mut method_name = method_name;
+        let mut methods = vec![];
+        while method_name.len() > 0 {
+            let (method, method_name_remains) = Method::parse_method(method_name)?;
+            method_name = method_name_remains;
+            methods.push(method);
+        }
+        Ok(methods)
+    }
+}
+
 fn parse_ident(text: &str) -> Result<(String, &str)> {
     let mut chars = text.chars();
     if text.len() == 0 || !is_arg_start(chars.next().unwrap()) {
@@ -260,54 +312,6 @@ fn is_arg_char(c: char) -> bool {
     c.is_ascii_alphanumeric() || c == '_'
 }
 
-fn parse_arg(text: &str) -> Result<(Arg, &str)> {
-    let (t, remains) = parse_ident(text)?;
-    let remains = consume(remains, ' ')?;
-    let (name, remains) = parse_ident(remains)?;
-    Ok((Arg { t, name }, remains))
-}
-
-fn parse_method_args(text: &str) -> Result<(Vec<Arg>, &str)> {
-    let mut remains = consume(text, '(')?;
-    if remains.len() == 0 {
-        return Err(VMLogicError::EvmError(EvmError::InvalidMetaTransactionMethodName));
-    }
-    let mut args = vec![];
-    let first = remains.chars().next().unwrap();
-    if is_arg_start(first) {
-        let (arg, r) = parse_arg(remains)?;
-        remains = r;
-        args.push(arg);
-        while remains.chars().next() == Some(',') {
-            remains = consume(remains, ',')?;
-            let (arg, r) = parse_arg(remains)?;
-            remains = r;
-            args.push(arg);
-        }
-    }
-
-    let remains = consume(remains, ')')?;
-
-    Ok((args, remains))
-}
-
-fn parse_method(method_name: &str) -> Result<(Method, &str)> {
-    let (name, remains) = parse_ident(method_name)?;
-    let (args, remains) = parse_method_args(remains)?;
-    Ok((Method { name, args }, remains))
-}
-
-fn methods_from_method_name(method_name: &str) -> Result<Vec<Method>> {
-    let mut method_name = method_name;
-    let mut methods = vec![];
-    while method_name.len() > 0 {
-        let (method, method_name_remains) = parse_method(method_name)?;
-        method_name = method_name_remains;
-        methods.push(method);
-    }
-    Ok(methods)
-}
-
 fn methods_signature(methods: &[Method]) -> String {
     methods
         .iter()
@@ -324,7 +328,7 @@ fn methods_signature(methods: &[Method]) -> String {
 /// Return a signature of the method_name
 /// E.g. method_signature("adopt(uint256 petId)") -> "adopt(uint256)"
 fn signature_from_method_name(method_name: &str) -> Result<String> {
-    let methods = methods_from_method_name(method_name)?;
+    let methods = Method::methods_from_method_name(method_name)?;
     Ok(methods_signature(&methods))
 }
 
