@@ -223,6 +223,7 @@ struct Arg {
 }
 
 struct Method {
+    #[allow(dead_code)]
     name: String,
     args: Vec<Arg>,
 }
