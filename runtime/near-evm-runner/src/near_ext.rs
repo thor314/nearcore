@@ -7,7 +7,7 @@ use keccak_hash::keccak;
 use near_runtime_fees::EvmCostConfig;
 use parity_bytes::Bytes;
 use vm::{
-    CallType, ContractCreateResult, CreateContractAddress, EnvInfo, Error as VmError,
+    ActionType, ContractCreateResult, CreateContractAddress, EnvInfo, Error as VmError,
     MessageCallResult, Result as EvmResult, ReturnData, Schedule, TrapKind,
 };
 
@@ -72,7 +72,7 @@ impl<'a> vm::Ext for NearExt<'a> {
     /// EIP-1344: Returns the current chain's EIP-155 unique identifier.
     /// See https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1344.md
     fn chain_id(&self) -> u64 {
-      self.chain_id.try_into().unwrap()
+        self.chain_id.try_into().unwrap()
     }
 
     /// Returns the storage value for a given key if reversion happens on the current transaction.
@@ -80,7 +80,7 @@ impl<'a> vm::Ext for NearExt<'a> {
         let raw_val = self
             .sub_state
             .parent // Read from the unmodified parent state
-            .read_contract_storage(&self.context_addr, key.0)
+            .read_contract_storage(&self.context_addr, &key.0)
             .unwrap_or(None)
             .unwrap_or([0u8; 32]); // default to an empty value
         Ok(H256(raw_val))
@@ -90,7 +90,7 @@ impl<'a> vm::Ext for NearExt<'a> {
     fn storage_at(&self, key: &H256) -> EvmResult<H256> {
         let raw_val = self
             .sub_state
-            .read_contract_storage(&self.context_addr, key.0)
+            .read_contract_storage(&self.context_addr, &key.0)
             .unwrap_or(None)
             .unwrap_or([0u8; 32]); // default to an empty value
         Ok(H256(raw_val))
@@ -102,7 +102,7 @@ impl<'a> vm::Ext for NearExt<'a> {
             return Err(VmError::MutableCallInStaticContext);
         }
         self.sub_state
-            .set_contract_storage(&self.context_addr, key.0, value.0)
+            .set_contract_storage(&self.context_addr, &key.0, value.0)
             .map_err(|err| vm::Error::Internal(err.to_string()))
     }
 
@@ -142,6 +142,7 @@ impl<'a> vm::Ext for NearExt<'a> {
         gas: &U256,
         value: &U256,
         code: &[u8],
+        _parent_version: &U256,
         address_type: CreateContractAddress,
         _trap: bool,
     ) -> Result<ContractCreateResult, TrapKind> {
@@ -179,10 +180,10 @@ impl<'a> vm::Ext for NearExt<'a> {
         value: Option<U256>,
         data: &[u8],
         code_address: &Address,
-        call_type: CallType,
+        call_type: ActionType,
         _trap: bool,
     ) -> Result<MessageCallResult, TrapKind> {
-        if self.is_static() && call_type != CallType::StaticCall {
+        if self.is_static() && call_type != ActionType::StaticCall {
             panic!("MutableCallInStaticContext")
         }
 
@@ -192,16 +193,16 @@ impl<'a> vm::Ext for NearExt<'a> {
                 receive_address,
                 data,
                 gas,
-                &self.evm_gas_config,
+                &self.evm_gas_config.precompile_costs,
             ));
         }
 
         let result = match call_type {
-            CallType::None => {
+            ActionType::Create | ActionType::Create2 => {
                 // Is not used.
                 return Err(TrapKind::Call(ActionParams::default()));
             }
-            CallType::Call => interpreter::call(
+            ActionType::Call => interpreter::call(
                 self.sub_state,
                 &self.origin,
                 sender_address,
@@ -214,7 +215,7 @@ impl<'a> vm::Ext for NearExt<'a> {
                 &self.evm_gas_config,
                 self.chain_id,
             ),
-            CallType::StaticCall => interpreter::static_call(
+            ActionType::StaticCall => interpreter::static_call(
                 self.sub_state,
                 &self.origin,
                 sender_address,
@@ -225,11 +226,11 @@ impl<'a> vm::Ext for NearExt<'a> {
                 &self.evm_gas_config,
                 self.chain_id,
             ),
-            CallType::CallCode => {
+            ActionType::CallCode => {
                 // Call another contract using storage of the current contract. No longer used.
                 return Err(TrapKind::Call(ActionParams::default()));
             }
-            CallType::DelegateCall => interpreter::delegate_call(
+            ActionType::DelegateCall => interpreter::delegate_call(
                 self.sub_state,
                 &self.origin,
                 sender_address,

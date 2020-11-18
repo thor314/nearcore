@@ -260,6 +260,8 @@ pub enum EvmError {
     Reverted,
     /// Invalid method name to parse
     InvalidMetaTransactionMethodName,
+    /// EVM error unknown
+    Unknown,
 }
 
 #[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize, Deserialize, Serialize)]

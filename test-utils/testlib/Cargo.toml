@@ -20,10 +20,10 @@ tempfile = "3"
 assert_matches = "1.3"
 num-rational = "0.2.4"
 hex = "0.4"
-ethabi = "8.0.0"
-ethabi-contract = "8.0.0"
-ethabi-derive = "8.0.0"
-ethereum-types = "0.6.0"
+ethabi = "9.0.1"
+ethabi-contract = "9.0.0"
+ethabi-derive = "9.0.1"
+ethereum-types = "0.8.0"
 
 borsh = "0.7.1"
 
@@ -34,7 +34,6 @@ near-primitives = { path = "../../core/primitives" }
 near-store = { path = "../../core/store" }
 node-runtime = { path = "../../runtime/runtime" }
 near-vm-errors = { path = "../../runtime/near-vm-errors" }
-near-evm-runner = { path = "../../runtime/near-evm-runner" }
 near-chain = { path = "../../chain/chain" }
 near-client = { path = "../../chain/client" }
 near-jsonrpc = { path = "../../chain/jsonrpc" }
@@ -42,3 +41,8 @@ near-network = { path = "../../chain/network" }
 near-jsonrpc-client = { path = "../../chain/jsonrpc/client" }
 near-runtime-fees = { path = "../../runtime/near-runtime-fees" }
 neard = { path = "../../neard" }
+near-evm-runner = { path = "../../runtime/near-evm-runner", optional = true }
+
+[features]
+default = []
+protocol_feature_evm = ["near-evm-runner", "near-primitives/protocol_feature_evm", "near-runtime-fees/protocol_feature_evm", "neard/protocol_feature_evm", "node-runtime/protocol_feature_evm", "near-chain-configs/protocol_feature_evm"]

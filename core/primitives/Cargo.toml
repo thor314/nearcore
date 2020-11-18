@@ -23,7 +23,7 @@ reed-solomon-erasure = "4"
 jemallocator = { version = "0.3", optional = true }
 hex = "0.4"
 num-rational = "0.2.4"
-primitive-types = { version = "0.7", default-features = false }
+primitive-types = "0.6"
 lazy_static = "1.4"
 
 borsh = "0.7.1"
@@ -35,9 +35,8 @@ near-rpc-error-macro = { path = "../../tools/rpctypegen/macro" }
 [features]
 default = ["jemallocator"]
 dump_errors_schema = ["near-rpc-error-macro/dump_errors_schema"]
-protocol_feature_forward_chunk_parts = []
+protocol_feature_forward_chunk_parts = ["nightly_protocol"]
 protocol_feature_evm = []
-nightly_protocol_features = ["nightly_protocol", "protocol_feature_forward_chunk_parts"]
 nightly_protocol = []
 
 
