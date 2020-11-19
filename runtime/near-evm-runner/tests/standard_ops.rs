@@ -5,11 +5,13 @@ use borsh::BorshSerialize;
 use ethabi_contract::use_contract;
 use ethereum_types::{Address, H256, U256};
 
+use keccak_hash::keccak;
 use near_crypto::{InMemorySigner, KeyType};
 use near_evm_runner::types::{TransferArgs, WithdrawArgs};
 use near_evm_runner::utils::{
-    address_from_arr, address_to_vec, encode_call_function_args, encode_view_call_function_args,
-    near_account_id_to_evm_address, near_erc721_domain, parse_meta_call, u256_to_arr,
+    address_from_arr, address_to_vec, ecrecover_address, encode_address, encode_call_function_args,
+    encode_string, encode_view_call_function_args, near_account_id_to_evm_address,
+    near_erc721_domain, parse_meta_call, u256_to_arr,
 };
 use near_runtime_fees::RuntimeFeesConfig;
 use near_vm_errors::{EvmError, VMLogicError};
@@ -21,8 +23,6 @@ use crate::utils::{
     CHAIN_ID,
 };
 mod utils;
-
-use parity_bytes::ToPretty;
 
 use_contract!(soltest, "tests/build/SolTests.abi");
 use_contract!(subcontract, "tests/build/SubContract.abi");
