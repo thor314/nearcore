@@ -262,8 +262,7 @@ fn test_meta_call_sig_and_recover() {
     let (mut fake_external, test_addr, vm_config, fees_config) = setup_and_deploy_test();
     let signer = InMemorySigner::from_seed("doesnt", KeyType::SECP256K1, "a");
     let signer_addr = public_key_to_address(signer.public_key.clone());
-    let mut context =
-        create_context(&mut fake_external, &vm_config, &fees_config, accounts(1), 100);
+    let context = create_context(&mut fake_external, &vm_config, &fees_config, accounts(1), 100);
     let domain_separator = near_erc721_domain(U256::from(CHAIN_ID));
 
     let meta_tx = encode_meta_call_function_args(
